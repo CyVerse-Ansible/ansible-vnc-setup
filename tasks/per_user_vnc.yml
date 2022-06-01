@@ -1,0 +1,121 @@
+# For now, test if the user home directory exists. A more sophisticated check would use getent and get the user's home directory
+# - name: STAT; check if user home directory exists
+#   stat:
+#     path: "/home/{{ vnc_user }}"
+#   register: user_home_dir
+#   ignore_errors: true
+
+- name: GETENT; check if user exists
+  getent:
+    database: passwd
+    key: "{{ vnc_user }}"
+    fail_key: false
+
+# - debug:
+#     var: ansible_facts.getent_passwd
+
+- block:
+  - name: FILE; create .vnc directory
+    file:
+      mode: 0755
+      owner: "{{ vnc_user }}"
+      group: "{{ vnc_user }}"
+      path: "/home/{{ vnc_user }}/.vnc"
+      state: directory
+
+  - block:
+    - name: STAT; check if VNC password is already set
+      stat:
+        path: "/home/{{ vnc_user }}/.vnc/passwd"
+      register: vnc_passwd_file
+
+    # - name: GROUP; Ensure $USERNAME group exists
+    #   group:
+    #     name: "{{USERNAME}}"
+    #     state: present
+
+    - name: SHELL; Set default VNC password
+      shell: "echo '{{ vnc_password }}' | vncpasswd -f > /home/{{ vnc_user }}/.vnc/passwd"
+      become: true
+      become_user: "{{ vnc_user }}"
+      when: not vnc_passwd_file.stat.exists
+
+    - name: FILE; Set correct permissions for VNC passwd file
+      file:
+        mode: 0600
+        owner: "{{ vnc_user }}"
+        group: "{{ vnc_user }}"
+        path: /home/{{ vnc_user }}/.vnc/passwd
+    when: VNC_PASSWORD_METHOD == "vncpassword"
+
+  - name: COPY; Add Startup File
+    copy:
+      content: |
+        #!/bin/sh
+
+        export LANG=en_US.UTF-8
+
+        unset SESSION_MANAGER
+        export XDG_SESSION_TYPE=x11
+        export GNOME_SHELL_SESSION_MODE=ubuntu
+
+        /etc/X11/xinit/xinitrc
+        vncconfig -iconic &
+        [ -r $HOME/.Xresources ] && xrdb $HOME/.Xresources
+        dbus-launch --exit-with-session /usr/bin/gnome-session --session=ubuntu &
+      dest: "/home/{{ vnc_user }}/.vnc/xstartup"
+      owner: "{{ vnc_user }}"
+      group: "{{ vnc_user }}"
+      mode: "0744"
+    become: true
+    become_user: "{{ vnc_user }}"
+
+  - name: COMMAND; check if vnc is already running
+    command: "lsof -i :{{ 5900 + display_number|int }}"
+    register: vnc_running
+    failed_when: False
+
+  # - name: COPY; add vncserver.users when AlmaLinux or Rocky
+  #   copy:
+  #     content: |
+  #       :{{ vnc_display_num }}={{ VNC_USERNAME }}
+  #     dest: /etc/tigervnc/vncserver.users
+  #     owner: root
+  #     group: root
+  #     mode: "0644"
+  #   become: yes
+  #   when:  ansible_facts['distribution'] == "AlmaLinux" or ansible_facts['distribution'] == "Rocky"
+  #   notify:
+  #     - restart vnc
+
+  # - name: FIREWALLD; permit traffic in public zone on vnc port when CentOS or AlmaLinux or Rocky
+  #   firewalld:
+  #     zone: public
+  #     immediate: yes
+  #     port: "{{ vnc_port }}/tcp"
+  #     permanent: yes
+  #     state: enabled
+  #   when:  ansible_facts['distribution'] == "CentOS" or ansible_facts['distribution'] == "AlmaLinux" or ansible_facts['distribution'] == "Rocky"
+  #   become: yes
+
+  - name: SHELL; start vncserver when CentOS
+    shell: "runuser -l {{ vnc_user }} -c '{{ vnc_executable }} :{{ display_number }}'"
+    become: true
+    when: vnc_running.rc != 0 and ansible_facts['distribution'] == "CentOS"
+    ignore_errors: true
+
+  - name: SHELL; start vncserver when Ubuntu
+    # shell: "runuser -l {{ vnc_user }} -c '{{ vnc_executable }} -localhost no :{{ display_number }}'"
+    shell: "runuser -l {{ vnc_user }} -c '{{ vnc_executable }} :{{ display_number }}'"
+    become: true
+    when: vnc_running.rc != 0 and ansible_facts['distribution'] == "Ubuntu"
+    ignore_errors: true
+
+  - name: SERVICE; enable & start vncserver when AlmaLinux or Rocky
+    service:
+      name: vncserver@:{{ display_number }}.service
+      enabled: true
+      state: restarted
+    become: true
+    when:  ansible_facts['distribution'] == "AlmaLinux" or ansible_facts['distribution'] == "Rocky"
+  when: ansible_facts.getent_passwd[vnc_user] != None

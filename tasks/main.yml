@@ -1,0 +1,46 @@
+- name: FAIL; verify username is set
+  fail:
+    msg: "VNC_USERS is a required variable"
+  when: VNC_USERS is not defined
+
+- name: FAIL; verify vncserver is installed
+  shell: "which {{ vnc_executable }}"
+  register: vncserver_cmd
+  failed_when: vncserver_cmd.rc != 0
+
+# don't loop here or else the tasks will be serial wrt steps within file
+- include_tasks: per_user_vnc.yml
+  vars:
+    vnc_user: "{{ item.key }}"
+    display_number: "{{ item.value.display_number }}"
+    vnc_password: "{{ item.value.password }}"
+  loop: "{{ VNC_USERS|dict2items }}"
+
+# for jetstream 2 this was needed on at least Ubuntu; otherwise, syslog will print out a bunch of these:
+# Jun  1 04:55:30 myhostname spice-vdagentd: UID mismatch: UID=1001 PID=17642 suid=1000
+# Jun  1 04:55:30 myhostname spice-vdagentd: Error getting active session: No data available
+# Jun  1 04:55:30 myhostname spice-vdagent[17642]: reading unix domain socket: Connection reset by peer, disconnecting 0x55e9548dd590
+- name: COPY; fix repeated in spice-vdagentd
+  copy:
+    dest: "/etc/default/spice-vdagentd"
+    content: |
+      SPICE_VDAGENTD_EXTRA_ARGS=-X
+    mode: "0644"
+  register: spice_vdagentd_changed
+
+- name: SYSTEMD; restart spice-vdagentd
+  systemd:
+    name: spice-vdagentd
+    state: restarted
+  when: spice_vdagentd_changed.changed
+
+# this section was added since gnome-terminal sucks and doesn't work -- after logging into desktop and clicking on the terminal icon, it just spins, stops, and then nothing (why?)
+# - name: APT; install terminator
+#   apt:
+#     name: terminator
+
+# - name: ALTERNATIVES; update x-terminal-emulator
+#   community.general.alternatives:
+#     name: x-terminal-emulator
+#     path: /usr/bin/terminator
+

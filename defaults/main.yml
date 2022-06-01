@@ -1,0 +1,7 @@
+---
+# defaults file for ansible-vnc-setup
+vnc_executable: /usr/bin/vncserver
+
+VNC_PASSWORD_METHOD: vncpassword
+
+VNC_LOCALE: "en_US.UTF-8"
