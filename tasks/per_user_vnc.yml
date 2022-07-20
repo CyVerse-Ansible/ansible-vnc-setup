@@ -75,6 +75,21 @@
     register: vnc_running
     failed_when: False
 
+  - name: FILE; link service file on rocky and alma
+    file:
+      src: "/lib/systemd/system/vncserver@.service"
+      dest: "/etc/systemd/system/vncserver@:{{ display_number }}.service"
+      state: link
+      mode: "0777"
+    when:  ansible_facts['distribution'] == "AlmaLinux" or ansible_facts['distribution'] == "Rocky"
+
+  - name: LINEINFILE; add vncserver.users when AlmaLinux or Rocky
+    lineinfile:
+      path: "/etc/tigervnc/vncserver.users"
+      line: ":{{ display_number }}={{ vnc_user }}"
+      create: yes
+    when:  ansible_facts['distribution'] == "AlmaLinux" or ansible_facts['distribution'] == "Rocky"
+
   # - name: COPY; add vncserver.users when AlmaLinux or Rocky
   #   copy:
   #     content: |
