@@ -38,7 +38,7 @@
       shell: "echo '{{ vnc_password }}' | vncpasswd -f > /home/{{ vnc_user }}/.vnc/passwd"
       become: true
       become_user: "{{ vnc_user }}"
-      when: not vnc_passwd_file.stat.exists
+      # when: not vnc_passwd_file.stat.exists
 
     - name: FILE; Set correct permissions for VNC passwd file
       file:
