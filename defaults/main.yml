@@ -5,3 +5,12 @@ vnc_executable: /usr/bin/vncserver
 VNC_PASSWORD_METHOD: vncpassword
 
 VNC_LOCALE: "en_US.UTF-8"
+
+# 5 minutes per user
+PER_USER_VNC_TIMEOUT: 300
+# 6 min (20 retries x 30 seconds) per user; note, retries is multiplied by num users
+PER_USER_VNC_RETRY: 20
+PER_USER_VNC_DELAY: 30
+
+VNC_FRAME_RATE: "30"
+VNC_ZLIB_LEVEL: "6"

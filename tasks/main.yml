@@ -8,13 +8,24 @@
   register: vncserver_cmd
   failed_when: vncserver_cmd.rc != 0
 
+# This is temporarily until a better solution is available - EJS 10/28/2022
+- name: APT; install dbus-x11
+  ansible.builtin.apt:
+    name: dbus-x11
+  when: ansible_distribution == "Ubuntu" and ansible_distribution_major_version | int >= 22
+  become: true
+  register: result
+  until: result is success
+  retries: 36
+  delay: 5
+
 # don't loop here or else the tasks will be serial wrt steps within file
 - include_tasks: per_user_vnc.yml
-  vars:
-    vnc_user: "{{ item.key }}"
-    display_number: "{{ item.value.display_number }}"
-    vnc_password: "{{ item.value.password }}"
-  loop: "{{ VNC_USERS|dict2items }}"
+  # vars:
+  #   vnc_user: "{{ item.key }}"
+  #   display_number: "{{ item.value.display_number }}"
+  #   vnc_password: "{{ item.value.password }}"
+  # loop: "{{ VNC_USERS|dict2items }}"
 
 # for jetstream 2 this was needed on at least Ubuntu; otherwise, syslog will print out a bunch of these:
 # Jun  1 04:55:30 myhostname spice-vdagentd: UID mismatch: UID=1001 PID=17642 suid=1000
@@ -34,13 +45,4 @@
     state: restarted
   when: spice_vdagentd_changed.changed
 
-# this section was added since gnome-terminal sucks and doesn't work -- after logging into desktop and clicking on the terminal icon, it just spins, stops, and then nothing (why?)
-# - name: APT; install terminator
-#   apt:
-#     name: terminator
-
-# - name: ALTERNATIVES; update x-terminal-emulator
-#   community.general.alternatives:
-#     name: x-terminal-emulator
-#     path: /usr/bin/terminator
 
