@@ -12,8 +12,8 @@
     fail_key: false
   # loop: "{{ VNC_USERS|dict2items }}"
 
-- debug:
-    var: ansible_facts.getent_passwd
+# - debug:
+#     var: ansible_facts.getent_passwd
 
 - block:
   - name: FILE; create .vnc directory
